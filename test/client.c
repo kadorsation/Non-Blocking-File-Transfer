@@ -11,6 +11,10 @@
 
 int main(int argc, char *argv[])
 {
+    if(argc != 4){
+        printf("argv error\n");
+        return 0;
+    }
     fd_set all;
     FD_ZERO(&all);
     int sockfd = 0;
@@ -30,6 +34,10 @@ int main(int argc, char *argv[])
     }
 
     char sendline[1025], recvline[1025];
+    memset(sendline, '\0', sizeof(sendline));
+    sprintf(sendline, argv[3]);
+    write(sockfd, sendline, sizeof(sendline));
+
     while(1){
         FD_SET(fileno(stdin), &all);
         FD_SET(sockfd, &all);
@@ -47,7 +55,7 @@ int main(int argc, char *argv[])
                 FD_ZERO(&all);
                 return 0;
             }
-            write(sockfd, sendline, strlen(sendline));
+            write(sockfd, sendline, sizeof(sendline));
         }
 
     }
