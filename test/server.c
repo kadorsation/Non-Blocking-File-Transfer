@@ -9,12 +9,17 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
+#include <fcntl.h> 
+#include <dirent.h>
+
+#define MODE (S_IRWXU | S_IRWXG | S_IRWXO)
 
 struct user
 {
     char user_name[1025];
     struct sockaddr_in clientInfo;
     int flag;
+    int sleep;
 };
 
 int main(int argc, char *argv[])
@@ -40,7 +45,7 @@ int main(int argc, char *argv[])
     int newfd;
     socklen_t len;
 
-    char buffer[1025], hello[1025], input[1025];
+    char buffer[1025], send[1025];
     int port = atoi (argv[1]);
     struct sockaddr_in serverInfo,clientInfo;
 
@@ -60,6 +65,7 @@ int main(int argc, char *argv[])
 
     for(i = 0; i < 10; i++){
         client[i].flag = -1;
+        client[i].sleep = 0;
         memset(client[i].user_name, '\0', sizeof(client[i].user_name));
     }
 
@@ -76,15 +82,21 @@ int main(int argc, char *argv[])
                     newfd = accept(listener, (struct sockaddr *) &client[i].clientInfo, &len);
                     client[i].flag = newfd;
 
+                    int flags = fcntl(newfd,F_GETFL);
+                    fcntl(newfd, F_SETFL, flags|O_NONBLOCK);
+
                     memset(client[i].user_name, '\0', sizeof(client[i].user_name));
                     memset(buffer, '\0', sizeof(buffer));
                     read(newfd, client[i].user_name, sizeof(client[i].user_name));
-                    printf("Welcome to the dropbox-like server: %s\n", client[i].user_name);
-                    char dir[1026];
-                    sprintf(dir, "/%s", client[i].user_name);
-                    printf("dir: %s\n", dir);
-                    check = mkdir(dir, S_IRWXU);
-                    printf("dirOK\n");
+                    printf("dir: %s\n", client[i].user_name);
+                    check = mkdir(client[i].user_name, MODE);
+                    if(check == 0) {
+                        printf("dirOK\n");
+                    }
+                    else{
+                        printf("dir err\n");
+                    }
+                    
                     sprintf(buffer, "Welcome to the dropbox-like server: %s\n", client[i].user_name);
                     write(client[i].flag, buffer, sizeof(buffer));
                     FD_SET(client[i].flag, &all);
@@ -118,12 +130,23 @@ int main(int argc, char *argv[])
                 }
                 else {
                     char* pch = strtok(buffer, " ");
+                    char* input = strtok(NULL, " ");
                     printf("check: %s\n", pch);
-                    pch = strtok(NULL, " ");
-                    pch[strlen(pch) - 1] = '\0';
-                    printf("input: %s\n", pch);
-                    sprintf(buffer, "%s\n", pch);
-                    write(client[i].flag, buffer, sizeof(buffer));
+                    printf("input: %s\n", input);
+                    printf("buffer: %s\n", buffer);
+
+                    if(strcmp(pch, "put") == 0){
+                        memset(send, '\0', sizeof(send));
+                        sprintf(send, "[Upload] %s Start!\n", input);
+                        write(client[i].flag, send, sizeof(send));
+                        printf("%s\n", send);
+                        for(int j = 0; j <= 3; j++){
+                            memset(send, '\0', sizeof(send));
+                            sprintf(send, "[Upload] %s %d\n",input, j);
+                            write(client[i].flag, send, sizeof(send));
+                        }
+                    }
+                    
                 }
                 if (--nready <= 0) {
                     break; 
