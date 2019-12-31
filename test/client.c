@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 
     char sendline[1025], recvline[1025];
     memset(sendline, '\0', sizeof(sendline));
-    sprintf(sendline, argv[3]);
+    sprintf(sendline, "%s", argv[3]);
     write(sockfd, sendline, sizeof(sendline));
 
     while(1){
@@ -49,11 +49,26 @@ int main(int argc, char *argv[])
         }
 
         if(FD_ISSET(fileno(stdin), &all)){
+            memset(sendline,'\0',1025);
             fgets(sendline, 1025, stdin);
             if(strcmp(sendline, "exit\n") == 0){
                 close(sockfd);
                 FD_ZERO(&all);
                 return 0;
+            }
+            char pch[5];
+            strncpy(pch, sendline, 5);
+            if(strcmp(pch, "sleep") == 0){
+                char* pch2 = strtok(sendline, " ");
+                pch2 = strtok(NULL, " ");
+                printf("The client starts to sleep.\n");
+                int slt = atoi(pch);
+                for(int i = 1; i <= slt; i++){
+                    printf("Sleep %d\n", i);
+                    sleep(1);
+                }
+                printf("Client wakes up.\n");
+                continue;
             }
             write(sockfd, sendline, sizeof(sendline));
         }
