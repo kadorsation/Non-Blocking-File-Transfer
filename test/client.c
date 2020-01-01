@@ -8,6 +8,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <fcntl.h> 
+#define min(x,y) (x < y?x:y)
+
+int filesize(FILE* fp){
+    fseek(fp, 0, SEEK_END);
+    int size = ftell(fp);
+    rewind(fp); 
+    return size;
+}
 
 int main(int argc, char *argv[])
 {
@@ -33,7 +42,8 @@ int main(int argc, char *argv[])
         printf("Connection error");
     }
 
-    char sendline[1025], recvline[1025];
+    int flags;
+    char sendline[1025], recvline[1025], inputline[1025];
     memset(sendline, '\0', sizeof(sendline));
     sprintf(sendline, "%s", argv[3]);
     write(sockfd, sendline, sizeof(sendline));
@@ -41,6 +51,12 @@ int main(int argc, char *argv[])
     while(1){
         FD_SET(fileno(stdin), &all);
         FD_SET(sockfd, &all);
+        
+        flags = fcntl(fileno(stdin),F_GETFL);
+        fcntl(fileno(stdin), F_SETFL, flags|O_NONBLOCK);
+        flags = fcntl(sockfd,F_GETFL);
+        fcntl(sockfd, F_SETFL, flags|O_NONBLOCK);
+
         select((sockfd+1), &all, NULL, NULL, NULL);
         if(FD_ISSET(sockfd, &all)){
             memset(recvline,'\0',1025);
@@ -49,20 +65,22 @@ int main(int argc, char *argv[])
         }
 
         if(FD_ISSET(fileno(stdin), &all)){
-            memset(sendline,'\0',1025);
-            fgets(sendline, 1025, stdin);
-            if(strcmp(sendline, "exit\n") == 0){
+            memset(inputline,'\0',1025);
+            fgets(inputline, 1025, stdin);
+            if(strcmp(inputline, "exit\n") == 0){
                 close(sockfd);
                 FD_ZERO(&all);
                 return 0;
             }
+
+            //sleep
             char pch[5];
-            strncpy(pch, sendline, 5);
+            strncpy(pch, inputline, 5);
             if(strcmp(pch, "sleep") == 0){
-                char* pch2 = strtok(sendline, " ");
+                char* pch2 = strtok(inputline, " ");
                 pch2 = strtok(NULL, " ");
                 printf("The client starts to sleep.\n");
-                int slt = atoi(pch);
+                int slt = atoi(pch2);
                 for(int i = 1; i <= slt; i++){
                     printf("Sleep %d\n", i);
                     sleep(1);
@@ -70,7 +88,66 @@ int main(int argc, char *argv[])
                 printf("Client wakes up.\n");
                 continue;
             }
-            write(sockfd, sendline, sizeof(sendline));
+
+            //put
+            char pch1[3];
+            strncpy(pch1, inputline, 3);
+            printf("input: %s\n", inputline);
+            printf("pch1: %s\n", pch1);
+            if(strcmp(pch1, "put") == 0){
+                char* pch2 = strtok(inputline, " ");
+                pch2 = strtok(NULL, " ");
+                pch2[strlen(pch2)-1] = '\0';
+                printf("[Upload] %s Start!\n", pch2);
+
+
+                FILE *fp = fopen(pch2, "rb");
+
+                //send file info
+                int size = filesize(fp);
+                memset(sendline, '\0', sizeof(sendline));
+                sprintf(sendline, "put %s %d", pch2, size);
+                write(sockfd, sendline, sizeof(sendline));
+                printf("sendline: %s\n", sendline);
+
+
+                int pkts = (size / 1025);
+                int lastpktsize = 1025;
+                if(size % 1025 != 0){ 
+                    pkts++;
+                    lastpktsize = size % 1025;
+                    printf("lastpktsize: %d\n", lastpktsize);
+                }
+
+                printf("num of pkts: %d\n", pkts);
+                int i = 0;
+                while(i < pkts){
+                    memset(sendline, '\0', sizeof(sendline));
+                    fread(sendline, 1, 1025, fp);
+                    //int pktsize = min(strlen(sendline), 1025);
+                    if(write(sockfd, sendline, sizeof(sendline))){
+                        i++;
+                        FILE *fp2 = fopen("wr", "a+");
+                        if(i == pkts){
+                            fwrite(sendline, 1, lastpktsize, fp2);
+                            fclose(fp2);
+                            printf("ACK %d Size: %d\n", i, lastpktsize);
+                            printf("%s\n", sendline);
+                        }
+                        else{
+                            fwrite(sendline, 1, sizeof(sendline), fp2);
+                            fclose(fp2);
+                            printf("ACK %d Size: %lu\n", i, sizeof(sendline));
+                            printf("%s\n", sendline);
+                        }
+                    }
+                    sleep(0.4);
+                }
+
+
+                fclose(fp);
+                printf("[Upload] %s Finish!\n", pch2);
+            }
         }
 
     }
