@@ -19,11 +19,13 @@ int filesize(FILE* fp){
     return size;
 }
 
+pid_t id;
+
 int bar(int i, int pkts, int *barnum){
     float barcheck = (float)i / (float)pkts;
     //printf("i: %d barcheck: %f\n", i, barcheck);
     if(barcheck *22 > (float)*barnum){
-        fprintf(stdout, "Progress : [");
+        fprintf(stdout, "Pid: %d Progress : [", id);
         fflush(stdout);
         *barnum++;
         for(int f = 0; f < 22; f++){
@@ -44,6 +46,7 @@ int bar(int i, int pkts, int *barnum){
 
 int main(int argc, char *argv[])
 {
+    id = getpid();
     if(argc != 4){
         printf("argv error\n");
         return 0;
@@ -70,7 +73,7 @@ int main(int argc, char *argv[])
     int lastpkt;
 
     int flags;
-    char sendline[1025], recvline[1025], inputline[1025];
+    char sendline[10240], recvline[10240], inputline[10240];
     memset(sendline, '\0', sizeof(sendline));
     sprintf(sendline, "%s", argv[3]);
     write(sockfd, sendline, sizeof(sendline));
@@ -78,7 +81,7 @@ int main(int argc, char *argv[])
     fcntl(fileno(stdin), F_SETFL, flags|O_NONBLOCK);
     flags = fcntl(sockfd,F_GETFL);
     fcntl(sockfd, F_SETFL, flags|O_NONBLOCK);
-
+    printf("Pid: %d Welcome to the dropbox-like server: %s\n", id, argv[3]);
     while(1){
         //FD_SET(fileno(stdin), &all);
         //FD_SET(sockfd, &all);
@@ -86,14 +89,13 @@ int main(int argc, char *argv[])
 
         //select((sockfd+1), &all, NULL, NULL, NULL);
         //if(FD_ISSET(sockfd, &all)){
-        memset(recvline,'\0',1025);
-        read(sockfd, recvline, 1025);
-        fputs(recvline, stdout);
+        memset(recvline,'\0',10240);
+        read(sockfd, recvline, 10240);
         //}
 
         //if(FD_ISSET(fileno(stdin), &all)){
-        memset(inputline,'\0',1025);
-        fgets(inputline, 1025, stdin);
+        memset(inputline,'\0',10240);
+        fgets(inputline, 10240, stdin);
         if(strcmp(inputline, "exit\n") == 0){
             close(sockfd);
             return 0;
@@ -105,13 +107,13 @@ int main(int argc, char *argv[])
         if(strcmp(pch, "sleep") == 0){
             char* pch2 = strtok(inputline, " ");
             pch2 = strtok(NULL, " ");
-            printf("The client starts to sleep.\n");
+            printf("Pid: %d The client starts to sleep.\n", id);
             int slt = atoi(pch2);
             for(int i = 1; i <= slt; i++){
-                printf("Sleep %d\n", i);
+                printf("Pid: %d Sleep %d\n", id, i);
                 sleep(1);
             }
-            printf("Client wakes up.\n");
+            printf("Pid: %d Client wakes up.\n",id);
             continue;
         }
         //sleep end
@@ -123,7 +125,7 @@ int main(int argc, char *argv[])
             char* pch2 = strtok(inputline, " ");
             pch2 = strtok(NULL, " ");
             pch2[strlen(pch2)-1] = '\0';
-            printf("[Upload] %s Start!\n", pch2);
+            printf("Pid: %d [Upload] %s Start!\n", id, pch2);
 
 
             FILE *fp = fopen(pch2, "rb");
@@ -137,18 +139,18 @@ int main(int argc, char *argv[])
             //printf("sendline: %s\n", sendline);
 
 
-            int pkts = (size / 1025);
-            int lastpktsize = 1025;
-            if(size % 1025 != 0){ 
+            int pkts = (size / 10240);
+            int lastpktsize = 10240;
+            if(size % 10240 != 0){ 
                 pkts++;
-                lastpktsize = size % 1025;
+                lastpktsize = size % 10240;
                 //printf("lastpktsize: %d\n", lastpktsize);
             }
 
                 //printf("num of pkts: %d\n", pkts);
             int i = 0;
             memset(sendline, '\0', sizeof(sendline));
-            fread(sendline, 1, 1025, fp);
+            fread(sendline, 1, 10240, fp);
             barnum = 0;
             while(i < pkts){
                 /*memset(sendline, '\0', sizeof(sendline));
@@ -166,7 +168,7 @@ int main(int argc, char *argv[])
                     if(i == pkts){
                         //fwrite(sendline, 1, lastpktsize, fp2);
                         //fclose(fp2);
-                        fprintf(stdout, "Progress : [######################]");
+                        fprintf(stdout, "Pid: %d Progress : [######################]", id);
                         fflush(stdout);
                         printf("\n");
                         //printf("%s\n", sendline);
@@ -202,12 +204,12 @@ int main(int argc, char *argv[])
                 }
                 //sleep(1);
                 memset(sendline, '\0', sizeof(sendline));
-                fread(sendline, 1, 1025, fp);
+                fread(sendline, 1, 10240, fp);
             }
 
 
             fclose(fp);
-            printf("[Upload] %s Finish!\n", pch2);
+            printf("Pid: %d [Upload] %s Finish!\n", id, pch2);
             continue;
         }
         //put end
@@ -217,29 +219,29 @@ int main(int argc, char *argv[])
             barnum = 0;
             char* pch = strtok(recvline, " ");
             pch = strtok(NULL, " ");
-            char filename[1025];
+            char filename[10240];
             strcpy(filename, pch);
             //printf("fliename: %s\n", filename);
             pch = strtok(NULL, " ");
             //printf("size: %s\n", pch);
             int size = atoi(pch);
             //printf("size: %d\n", size);
-            int pkts = (size / 1025);
-            lastpkt = 1025;
-            if(size % 1025 != 0){ 
+            int pkts = (size / 10240);
+            lastpkt = 10240;
+            if(size % 10240 != 0){ 
                 pkts++;
-                lastpkt = size % 1025;
+                lastpkt = size % 10240;
                 //printf("lastpktsize: %d\n", client[i].lastpkt);
             }
 
             //printf("receive start with size:%d  lastpkt:%d  pkts:%d\n", size, lastpkt, pkts);
-            printf("[Download] %s Start!\n", filename);
+            printf("Pid: %d [Download] %s Start!\n", id, filename);
             FILE *fp = fopen(filename, "ab+");
 
             int i = 0;     
             while(i < pkts){
                 memset(recvline, '\0', sizeof(recvline));
-                int n = read(sockfd, recvline, 1025);
+                int n = read(sockfd, recvline, 10240);
                 //DIR *dir = opendir(client[i].user_name);
                 //int pktsize = min(strlen(buffer), 1025);
                 if(n > 0){
@@ -248,7 +250,7 @@ int main(int argc, char *argv[])
                     //printf("Use dir:%s\n", usedir);
 
                     if(i == pkts){
-                        fprintf(stdout, "Progress : [######################]");
+                        fprintf(stdout, "Pid: %d Progress : [######################]", id);
                         fflush(stdout);
                         printf("\n");
                         fwrite(recvline, 1, lastpkt, fp);      
@@ -262,9 +264,11 @@ int main(int argc, char *argv[])
                     
             }
             fclose(fp);
-            printf("[Download] %s Finish!\n", filename);
+            printf("Pid: %d [Download] %s Finish!\n", id, filename);
         }
     //}
 
     }
     return 0;
+
+}
