@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
             pch = strtok(NULL, " ");
             char filename[1025];
             strcpy(filename, pch);
-            //printf("fliename: %s\n", client[i].filename);
+            //printf("fliename: %s\n", filename);
             pch = strtok(NULL, " ");
             //printf("size: %s\n", pch);
             int size = atoi(pch);
@@ -268,4 +268,3 @@ int main(int argc, char *argv[])
 
     }
     return 0;
-}
