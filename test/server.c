@@ -18,13 +18,13 @@
 //#define min(x,y) (x < y?x:y)
 
 int filesize(FILE* fp){
-    printf("s0\n");
+    //printf("s0\n");
     fseek(fp, 0, SEEK_END);
-    printf("s1\n");
+    //printf("s1\n");
     int size = ftell(fp);
-    printf("s2\n");
+    //printf("s2\n");
     rewind(fp); 
-    printf("s3\n");
+    //printf("s3\n");
     return size;
 }
 
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
                     //printf("dir: %s\n", client[i].user_name);
                     check = mkdir(client[i].user_name, MODE);
                     if(check == 0) {        //new user name
-                        //printf("dir OK\n");
+                        printf("dir OK\n");
                         for(j = 0; j < 10; j++){
                             if (data[j].user_name[0] == '\0'){
                                 sprintf(data[j].user_name, "%s", client[i].user_name);
@@ -154,11 +154,13 @@ int main(int argc, char *argv[])
                         }
                     }
                     else{                   //old user name 
-                        //printf("dir ERR\n");
+                        printf("dir ERR\n");
+                        printf("9 %s\n", client[0].data_ptr->file[0]);
                         for(j = 0; j < 10; j++){
                             //printf("j: %d\n", j);
                             if(strcmp(data[j].user_name, client[i].user_name) == 0){
                                 client[i].data_ptr = &data[j];
+                                printf("10 %s\n", client[0].data_ptr->file[0]);
                                 break;
                             }
                         }
@@ -214,10 +216,10 @@ int main(int argc, char *argv[])
                 }
             }
             else{
-                /*printf("read something, N : %ld\n", n);
-                if(errno == EAGAIN){
-                    continue;
-                }*/
+                //printf("read something, N : %ld\n", n);
+                //if(errno == EAGAIN){
+                //    continue;
+                //}
                 //printf("receive something\n");
                 //printf("buffer: %s\n", buffer);
                 /*char putcheck[3];
@@ -251,11 +253,11 @@ int main(int argc, char *argv[])
                     client[i].s_r = 2;
                     //set file data
                     client[i].file_send = client[i].data_ptr->file_num;     //from 0
-                    strcpy(client[i].data_ptr->file[client[i].data_ptr->file_num], client[i].filename);
+                    sprintf(client[i].data_ptr->file[client[i].data_ptr->file_num], "%s", client[i].filename);     
                     //printf("put file name: %s\n", client[i].data_ptr->file[client[i].data_ptr->file_num]);
 
                 }
-                else{
+                else if(client[i].s_r = 2){
                     //DIR *dir = opendir(client[i].user_name);
                     //int pktsize = min(strlen(buffer), 1025);
                     client[i].recpkt++;
@@ -281,6 +283,7 @@ int main(int argc, char *argv[])
                     //closedir(dir);
                     
                 }
+                //printf("0 %s\n", client[i].data_ptr->file[0]);
                 continue;
                     
             }
@@ -289,14 +292,27 @@ int main(int argc, char *argv[])
             
 
             if((client[i].data_ptr->file_num > client[i].fileptr) && (client[i].s_r == 0) && (client[i].flag > 0)){
+                //printf("1 %s\n", client[i].data_ptr->file[0]);
                 client[i].s_r = 1;
                 //printf("%s is no file %d\n", client[i].user_name, i);
                 char usedir[1025];
                 memset(usedir, '\0', sizeof(usedir));
                 //printf("client[i].data_ptr->file_num %d,client[i].fileptr %d\n", client[i].data_ptr->file_num, client[i].fileptr);
-                sprintf(usedir, "%s/%s", client[i].user_name, client[i].data_ptr->file[client[i].fileptr]);
+                int x = client[i].fileptr;
+                sprintf(usedir, "%s/%s", client[i].user_name, client[i].data_ptr->file[x]);
+
+                //printf("%s\n", client[i].data_ptr->file[0]);
+                //printf("%s\n", client[i].data_ptr->file[client[i].fileptr]);
+                //printf("%s\n", client[i].data_ptr->file[x]);
+
                 //printf("user_name: %s; file: %s; usedir: %s\n", client[i].user_name, client[i].data_ptr->file[client[i].fileptr], usedir);
+                //printf("user_name: %s; file: %s; usedir: %s\n", client[i].user_name, client[i].data_ptr->file[x], usedir);
+                
+
                 client[i].fp = fopen(usedir, "rb");
+                if(client[i].fp == NULL){
+                    printf("open file err\n");
+                }
                 int size = filesize(client[i].fp);
                 client[i].sendpkt = 0;
                 client[i].pkts = (size / 1025);
@@ -312,7 +328,7 @@ int main(int argc, char *argv[])
             }
 
             if(client[i].s_r == 1 && client[i].flag > 0){
-                printf("send pkt %d to %d\n", client[i].sendpkt, i);
+                //printf("send pkt %d to %d\n", client[i].sendpkt, i);
                 memset(buffer, '\0', sizeof(buffer));
                 fread(buffer, 1, 1025, client[i].fp);
 
@@ -324,21 +340,33 @@ int main(int argc, char *argv[])
                 if(n > 0){
                     client[i].sendpkt++;
                     if(client[i].sendpkt == client[i].pkts){
-                        printf("The file close\n");
+                        //printf("The file close\n");
                         fclose(client[i].fp);
                         client[i].s_r = 0;
                         client[i].sendpkt = 0;
                         client[i].pkts = 0;
                         client[i].lastpkt = 0;
                         client[i].fileptr++;
-                        printf("client[i].data_ptr->file_num %d,client[i].fileptr %d, i = %d\n", client[i].data_ptr->file_num, client[i].fileptr, i);
+                        //printf("client[i].data_ptr->file_num %d,client[i].fileptr %d, i = %d\n", client[i].data_ptr->file_num, client[i].fileptr, i);
                     }
                 }
                 //sleep(1);
             } 
 
+            /*for (i = 0; i < 10; i++)
+            {
+                if(client[i].flag > 0){
+                    for (j = 0; j < 20; j++)
+                    {
+                        if(client[i].data_ptr->file[j][0] != '\0'){
+                            printf("client %d file %d %s\n", i, j, client[i].data_ptr->file[j]);
+                            sleep(1);
+                        }
+                    }
+                }
+            }*/
+
         }//for end
 
     }
     return 0;
-}
