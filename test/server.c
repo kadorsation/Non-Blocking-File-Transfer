@@ -12,23 +12,37 @@
 #include <fcntl.h> 
 #include <dirent.h>
 #include <errno.h>
+#include <netdb.h>
 
 #define MODE (S_IRWXU | S_IRWXG | S_IRWXO)
-#define min(x,y) (x < y?x:y)
+//#define min(x,y) (x < y?x:y)
+
+int filesize(FILE* fp){
+    printf("s0\n");
+    fseek(fp, 0, SEEK_END);
+    printf("s1\n");
+    int size = ftell(fp);
+    printf("s2\n");
+    rewind(fp); 
+    printf("s3\n");
+    return size;
+}
 
 struct user
 {
     char user_name[1025];
     struct sockaddr_in clientInfo;
     int flag;
-    int file_send;
+    int file_send;      //the file is using now
     char filename[1025];
-    int fileptr;
-    int s_r;
+    int fileptr;        //the file has been send
+    int s_r;            //1 is s 2 is r
     int pkts;
     int recpkt;
+    int sendpkt;
     int lastpkt;
     struct user_data * data_ptr;
+    FILE *fp;
 };
 
 struct user_data{
@@ -86,6 +100,7 @@ int main(int argc, char *argv[])
         client[i].file_send = 0;
         client[i].fileptr = 0;
         client[i].s_r = 0;
+        client[i].data_ptr = NULL;
     }
 
     struct user_data data[10];
@@ -107,10 +122,10 @@ int main(int argc, char *argv[])
             //printf("into listener\n");
         newfd = accept(listener, (struct sockaddr *) &client[i].clientInfo, &len);
         if(newfd > 0){
-            printf("newfd: %d\n", newfd); 
+            //printf("newfd: %d\n", newfd); 
             for (i = 0; i < 10; i++){ 
                 if (client[i].flag < 0) { 
-                    printf("Someone comming\n");
+                    //printf("Someone comming\n");
                     len = sizeof(client[i].clientInfo);
                     //newfd = accept(listener, (struct sockaddr *) &client[i].clientInfo, &len);
                     client[i].flag = newfd;
@@ -129,7 +144,7 @@ int main(int argc, char *argv[])
                     //printf("dir: %s\n", client[i].user_name);
                     check = mkdir(client[i].user_name, MODE);
                     if(check == 0) {        //new user name
-                        printf("dir OK\n");
+                        //printf("dir OK\n");
                         for(j = 0; j < 10; j++){
                             if (data[j].user_name[0] == '\0'){
                                 sprintf(data[j].user_name, "%s", client[i].user_name);
@@ -139,7 +154,7 @@ int main(int argc, char *argv[])
                         }
                     }
                     else{                   //old user name 
-                        printf("dir ERR\n");
+                        //printf("dir ERR\n");
                         for(j = 0; j < 10; j++){
                             //printf("j: %d\n", j);
                             if(strcmp(data[j].user_name, client[i].user_name) == 0){
@@ -166,6 +181,10 @@ int main(int argc, char *argv[])
             if (--nready <= 0){ 
                 continue;
             }*/
+
+            /*for(j = 0; j < 10; j++){
+                printf("%d : %s\n", j, data[j].user_name);
+            }*/
         }
         //}
         //printf("loop!\n");
@@ -176,18 +195,25 @@ int main(int argc, char *argv[])
             if(sockfd < 0){
                 continue;
             }
+
+
+
             memset(buffer, '\0', sizeof(buffer));
             n = read(sockfd, buffer, 1025);
             if(n == 0 || buffer == "exit\n"){
                 close(sockfd); 
-                FD_CLR(sockfd, &all); 
                 client[i].flag = -1; 
                 client[i].file_send = 0;
                 client[i].fileptr = 0;
                 //printf("%s leave.\n", client[i].user_name);
                 memset(client[i].user_name, '\0', sizeof(client[i].user_name));
             }
-            else if(n != -1){
+            else if(n < 0){
+                if(errno == EAGAIN && client[i].s_r == 2){
+                    continue;
+                }
+            }
+            else{
                 /*printf("read something, N : %ld\n", n);
                 if(errno == EAGAIN){
                     continue;
@@ -222,17 +248,18 @@ int main(int argc, char *argv[])
                         //printf("lastpktsize: %d\n", client[i].lastpkt);
                     }
                     client[i].recpkt = 0;
-
+                    client[i].s_r = 2;
+                    //set file data
                     client[i].file_send = client[i].data_ptr->file_num;     //from 0
                     strcpy(client[i].data_ptr->file[client[i].data_ptr->file_num], client[i].filename);
-                    client[i].data_ptr->file_num++;   
-                    continue; 
+                    //printf("put file name: %s\n", client[i].data_ptr->file[client[i].data_ptr->file_num]);
+
                 }
                 else{
                     //DIR *dir = opendir(client[i].user_name);
                     //int pktsize = min(strlen(buffer), 1025);
                     client[i].recpkt++;
-                    printf("recpkt: %d\n", client[i].recpkt);
+                    //printf("recpkt: %d\n", client[i].recpkt);
                     char usedir[1025];
                     memset(usedir, '\0', sizeof(usedir));
                     sprintf(usedir, "%s/%s", client[i].user_name, client[i].filename);     
@@ -245,15 +272,72 @@ int main(int argc, char *argv[])
                     }
                     else{
                         fwrite(buffer, 1, client[i].lastpkt, fp);
+                        client[i].data_ptr->file_num++; 
+                        client[i].s_r = 0;
+                        client[i].fileptr++;
                     }
                     fclose(fp);
                     //printf("input: %s\n\n", buffer);
                     //closedir(dir);
-
+                    
                 }
+                continue;
                     
             }
-        }
+            //put end
+
+            
+
+            if((client[i].data_ptr->file_num > client[i].fileptr) && (client[i].s_r == 0) && (client[i].flag > 0)){
+                client[i].s_r = 1;
+                //printf("%s is no file %d\n", client[i].user_name, i);
+                char usedir[1025];
+                memset(usedir, '\0', sizeof(usedir));
+                //printf("client[i].data_ptr->file_num %d,client[i].fileptr %d\n", client[i].data_ptr->file_num, client[i].fileptr);
+                sprintf(usedir, "%s/%s", client[i].user_name, client[i].data_ptr->file[client[i].fileptr]);
+                //printf("user_name: %s; file: %s; usedir: %s\n", client[i].user_name, client[i].data_ptr->file[client[i].fileptr], usedir);
+                client[i].fp = fopen(usedir, "rb");
+                int size = filesize(client[i].fp);
+                client[i].sendpkt = 0;
+                client[i].pkts = (size / 1025);
+                client[i].lastpkt = 1025;
+                if(size % 1025 != 0){ 
+                    client[i].pkts++;
+                    client[i].lastpkt = size % 1025;
+                    //printf("lastpktsize: %d\n", client[i].lastpkt);
+                }
+                memset(buffer, '\0', sizeof(buffer));
+                sprintf(buffer, "put %s %d", client[i].data_ptr->file[client[i].file_send], size);     //file_name file_size
+                n = write(sockfd, buffer, sizeof(buffer));
+            }
+
+            if(client[i].s_r == 1 && client[i].flag > 0){
+                printf("send pkt %d to %d\n", client[i].sendpkt, i);
+                memset(buffer, '\0', sizeof(buffer));
+                fread(buffer, 1, 1025, client[i].fp);
+
+                //FILE *fp2 = fopen("wr", "a+");
+                //fwrite(buffer, 1, sizeof(buffer), fp2);
+                //fclose(fp2);
+
+                n = write(sockfd, buffer, sizeof(buffer));
+                if(n > 0){
+                    client[i].sendpkt++;
+                    if(client[i].sendpkt == client[i].pkts){
+                        printf("The file close\n");
+                        fclose(client[i].fp);
+                        client[i].s_r = 0;
+                        client[i].sendpkt = 0;
+                        client[i].pkts = 0;
+                        client[i].lastpkt = 0;
+                        client[i].fileptr++;
+                        printf("client[i].data_ptr->file_num %d,client[i].fileptr %d, i = %d\n", client[i].data_ptr->file_num, client[i].fileptr, i);
+                    }
+                }
+                //sleep(1);
+            } 
+
+        }//for end
 
     }
     return 0;
