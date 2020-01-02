@@ -10,13 +10,36 @@
 #include <netdb.h>
 #include <fcntl.h> 
 #include <errno.h>
-#define min(x,y) (x < y?x:y)
+//#define min(x,y) (x < y?x:y)
 
 int filesize(FILE* fp){
     fseek(fp, 0, SEEK_END);
     int size = ftell(fp);
     rewind(fp); 
     return size;
+}
+
+int bar(int i, int pkts, int *barnum){
+    float barcheck = (float)i / (float)pkts;
+    //printf("i: %d barcheck: %f\n", i, barcheck);
+    if(barcheck *22 > (float)*barnum){
+        fprintf(stdout, "Progress : [");
+        fflush(stdout);
+        *barnum++;
+        for(int f = 0; f < 22; f++){
+            if((float)f <= barcheck *22){
+                fprintf(stdout, "#");
+                fflush(stdout);
+            }
+            else{
+                fprintf(stdout, " ");
+                fflush(stdout);
+            }
+        }
+        fprintf(stdout, "]");
+        fflush(stdout);
+        printf("\r");
+    }
 }
 
 int main(int argc, char *argv[])
@@ -43,7 +66,7 @@ int main(int argc, char *argv[])
         printf("Connection error");
     }
 
-    //int barnum;
+    int barnum;
 
     int flags;
     char sendline[1025], recvline[1025], inputline[1025];
@@ -109,7 +132,7 @@ int main(int argc, char *argv[])
                 memset(sendline, '\0', sizeof(sendline));
                 sprintf(sendline, "put %s %d", pch2, size);
                 int n = write(sockfd, sendline, sizeof(sendline));
-                printf("N: %d\n", n);
+                //printf("N: %d\n", n);
                 //printf("sendline: %s\n", sendline);
 
 
@@ -121,10 +144,11 @@ int main(int argc, char *argv[])
                     //printf("lastpktsize: %d\n", lastpktsize);
                 }
 
-                printf("num of pkts: %d\n", pkts);
+                //printf("num of pkts: %d\n", pkts);
                 int i = 0;
                 memset(sendline, '\0', sizeof(sendline));
                 fread(sendline, 1, 1025, fp);
+                barnum = 0;
                 while(i < pkts){
                     /*memset(sendline, '\0', sizeof(sendline));
                     fread(sendline, 1, 1025, fp);*/
@@ -141,7 +165,7 @@ int main(int argc, char *argv[])
                         if(i == pkts){
                             fwrite(sendline, 1, lastpktsize, fp2);
                             fclose(fp2);
-                            fprintf(stdout, "ACK %d Size: %d", i, lastpktsize);
+                            fprintf(stdout, "Progress : [######################]");
                             fflush(stdout);
                             printf("\n");
                             //printf("%s\n", sendline);
@@ -150,9 +174,28 @@ int main(int argc, char *argv[])
                         else{
                             fwrite(sendline, 1, sizeof(sendline), fp2);
                             fclose(fp2);
-                            fprintf(stdout, "ACK %d Size: %lu", i, sizeof(sendline));
-                            fflush(stdout);
-                            printf("\r");
+                            /*float barcheck = (float)i / (float)pkts;
+                            //printf("i: %d barcheck: %f\n", i, barcheck);
+                            if(barcheck *22 > (float)barnum){
+                                fprintf(stdout, "Progress : [");
+                                fflush(stdout);
+                                barnum++;
+                                for(int f = 0; f < 22; f++){
+                                    if((float)f <= barcheck *22){
+                                        fprintf(stdout, "#");
+                                        fflush(stdout);
+                                    }
+                                    else{
+                                        fprintf(stdout, " ");
+                                        fflush(stdout);
+                                    }
+                                }
+                                fprintf(stdout, "]");
+                                fflush(stdout);
+                                printf("\r");
+                            }*/
+                            bar(i, pkts, &barnum);
+                            //printf("barnum: %d\n", barnum);
                             //printf("%s\n", sendline);
                         }
                     }
